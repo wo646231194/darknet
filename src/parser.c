@@ -375,9 +375,9 @@ maploss_layer parse_maploss(list *options, size_params params)
     int classes = option_find_int(options, "classes", 1);
     int coords = option_find_int(options, "coords", 1);
     int size = option_find_int(options, "size", 1);
-    float step = option_find_float(options, "step", 1.4);
+    int num = option_find_float(options, "num", 1.4);
     int h = option_find_int(options, "height", 14);
-    maploss_layer layer = make_maploss_layer(params.batch, params.inputs, classes, coords, size, step, h);
+    maploss_layer layer = make_maploss_layer(params.batch, params.inputs, classes, coords, size, num, h);
 
     layer.object_scale = option_find_float(options, "object_scale", 1);
     layer.noobject_scale = option_find_float(options, "noobject_scale", 1);
