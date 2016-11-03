@@ -47,7 +47,6 @@ void train_pyramid(char *cfgfile, char *weightfile)
     args.m = plist->size;
     args.classes = classes;
     args.jitter = jitter;
-    args.num_boxes = side;
     args.d = &buffer;
     args.type = PYRAMID_DATA;
 

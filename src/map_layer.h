@@ -8,7 +8,7 @@
 
 typedef layer map_layer;
 
-map_layer make_map_layer(int batch, int h, int w, int c, int size, int stride, int padding, int class);
+map_layer make_map_layer(int batch, int h, int w, int c, int size, int stride, int padding, int classes);
 void forward_map_layer(const map_layer l, network_state state);
 void backward_map_layer(const map_layer l, network_state state);
 

@@ -1,5 +1,8 @@
 #include "map_layer.h"
 #include "cuda.h"
+#include "blas.h"
+#include "utils.h"
+#include "reshape.h"
 #include <stdio.h>
 
 map_layer make_map_layer(int batch, int h, int w, int c, int size, int stride, int padding, int classes)
@@ -55,40 +58,63 @@ void forward_map_layer_gpu(map_layer l, network_state state)
     fill_ongpu(l.inputs*l.batch, 0, l.delta_gpu, 1);
     memset(l.delta, 0, l.inputs*l.batch*sizeof(float));
     
+    float *before = calloc(l.batch*l.c*l.h*l.w, sizeof(float));
+    cuda_pull_array(state.input, before, l.batch*l.c*l.h*l.w);
+    float *after = calloc(l.batch*l.c*l.h*l.w, sizeof(float));//------------------------after
+    //----------------CHW to HWC--------------------
+    int i,j,iy,ix;
+    for(i = 0; i < l.batch; ++i){
+        reshape_cpu(before + i*l.c*l.h*l.w, l.c, l.h, l.w, after + i*l.c*l.h*l.w, CHW2HWC);
+    }
+    free(before); before = NULL;
+    if (!state.train){
+        for (iy = 0; iy < l.h; iy++){
+            for (ix = 0; ix < l.w; ix++){
+                int *x = calloc(l.batch, sizeof(int));//-----------------------x
+                int *y = calloc(l.batch, sizeof(int));//-----------------------y
+                for (i = 0; i < l.batch; ++i){
+                    int index = i*l.c*l.h*l.w + iy*l.c*l.h + ix*l.c;
+                    x[i] = ix; y[i] = iy;
+                    for (j = 0; j < l.outputs; ++j){
+                        l.output[j + i*l.outputs] = after[index + j];
+                    }
+                }
+                cuda_push_array(l.output_gpu, l.output, l.batch*l.outputs);
+                int now = state.index;
+                forward_network_map_gpu(state.net, state, now + 1, 1, l.w, l.h, x, y);
+                free(x); x = NULL;//-------------------------------------x end
+                free(y); y = NULL;//-------------------------------------y end
+            }
+        }
+        cuda_push_array(state.net.layers[state.net.n - 1].output_gpu, state.net.layers[state.net.n - 1].output, state.net.layers[state.net.n - 1].outputs);
+        return;
+    }
     //---------------pull truth-----------------
     float *truth_cpu = 0;
-    if(state.truth){
-        int num_truth = l.batch*50*(5+l.classes);
+    if (state.truth){
+        int num_truth = l.batch * 50 * (5 + l.classes);
         truth_cpu = calloc(num_truth, sizeof(float));//------------------------------truth_cpu
         cuda_pull_array(state.truth, truth_cpu, num_truth);
     }
-    float *before = calloc(l.batch*l.c*l.h*l.w, sizeof(float));//-------------before
-    cuda_pull_array(state.input, before, l.batch*l.c*l.h*l.w);
-    float *after = calloc(l.batch*l.c*l.h*l.w, sizeof(float));//------------------------after
-    //--------------CHW to HWC--------------------
-    for(int i = 0; i < l.batch; ++i){
-        reshape_cpu(before + i*l.c*l.h*l.w, l.c, l.h, l.w, after + i*l.c*l.h*l.w, CHW2HWC);
-        //reshape_ongpu(state.input + i*l.c*l.h*l.w, l.c, l.h, l.w, state.workspace + i*l.c*l.h*l.w, CHW2HWC);
-    }
-    free(before); before = NULL;//--------------------------------------------before end
     //--------------max truth box in batch-------------
-    int m=0;
-    for(int i = 0; i < l.batch; ++i){
-        int bt = i*50*(5+l.classes);
-        int num=0;
-        while (truth_cpu[bt]==1.0){
-            num++;
-            bt += (5+l.classes);
-        }
-        m = m>num?m:num;
-    }
+    int m=3,n;
+    // for(int i = 0; i < l.batch; ++i){
+    //     int bt = i*50*(5+l.classes);
+    //     int num=0;
+    //     while (truth_cpu[bt]==1.0){
+    //         num++;
+    //         bt += (5+l.classes);
+    //     }
+    //     m = m>num?m:num;
+    // }
     //---------------forward max truth-------------------
-    for(int n=0; n < m; ++n){
+    *(state.net.layers[state.net.n-1].cost) = 0;
+    for(n=0; n < m; ++n){
         int *offset = 0;//save where to map
         offset = calloc(l.batch, sizeof(int));//-----------------------offset
         int *x = calloc(l.batch, sizeof(int));//-----------------------x
         int *y = calloc(l.batch, sizeof(int));//-----------------------y
-        for(int i = 0; i < l.batch; ++i){
+        for(i = 0; i < l.batch; ++i){
             int bt = i*50*(5+l.classes) + n*(5+l.classes);
             box b = float_to_box(truth_cpu + bt + 1 + l.classes);
             int col = b.x * l.w;
@@ -100,7 +126,7 @@ void forward_map_layer_gpu(map_layer l, network_state state)
             int index = i*l.c*l.h*l.w + row*l.c*l.h + col*l.c;
             offset[i] = index; x[i] = col; y[i] = row;
 
-            for (int j = 0; j < l.outputs; ++j){
+            for (j = 0; j < l.outputs; ++j){
                 l.output[j + i*l.outputs] = after[index + j];
             }
             //copy_ongpu(l.outputs, state.input + index, 1, l.output_gpu + i * l.outputs, 1);
@@ -111,9 +137,9 @@ void forward_map_layer_gpu(map_layer l, network_state state)
         backward_network_map_gpu(state.net, state, now+1, n, l.w, l.h);
         float *delta = calloc(l.batch*l.outputs, sizeof(float));//---------------------delta
         cuda_pull_array(l.delta_gpu, delta, l.batch*l.outputs);
-        for(int i = 0; i < l.batch; ++i){
+        for(i = 0; i < l.batch; ++i){
             int index = offset[i];
-            for (int j = 0; j < l.outputs; ++j){
+            for (j = 0; j < l.outputs; ++j){
                 l.delta[index + j] += delta[j + i*l.outputs];
             }
         }
@@ -126,7 +152,7 @@ void forward_map_layer_gpu(map_layer l, network_state state)
     free(truth_cpu); truth_cpu = NULL;//-----------------------------------------------------truth_cpu end
     //--------------HWC to CHW--------------------
     float *delta = calloc(l.batch*l.inputs, sizeof(float));//-----------------delta
-    for(int i = 0; i < l.batch; ++i){
+    for(i = 0; i < l.batch; ++i){
         reshape_cpu(l.delta + i*l.c*l.h*l.w, l.c, l.h, l.w, delta + i*l.c*l.h*l.w, HWC2CHW);
     }
     cuda_push_array(l.delta_gpu, delta, l.batch*l.inputs);
