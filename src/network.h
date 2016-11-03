@@ -80,7 +80,11 @@ float * get_network_output_gpu_layer(network net, int i);
 float * get_network_delta_gpu_layer(network net, int i);
 float *get_network_output_gpu(network net);
 void forward_network_gpu(network net, network_state state);
+void forward_network_index_gpu(network net, network_state state, int index);
+void forward_network_map_gpu(network net, network_state state, int index, int n, int w, int h, int* x, int* y);
 void backward_network_gpu(network net, network_state state);
+void backward_network_index_gpu(network net, network_state state, int index);
+void backward_network_map_gpu(network net, network_state state, int index, int n, int w, int h);
 void update_network_gpu(network net);
 #endif
 

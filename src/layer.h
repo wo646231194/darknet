@@ -34,7 +34,9 @@ typedef enum {
     XNOR,
     REGION,
     REORG,
-    BLANK
+    BLANK,
+    MAP,
+    MAPLOSS
 } LAYER_TYPE;
 
 typedef enum{

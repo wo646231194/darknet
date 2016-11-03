@@ -34,6 +34,8 @@ extern "C" {
 #include "route_layer.h"
 #include "shortcut_layer.h"
 #include "blas.h"
+#include "map_layer.h"
+#include "maploss_layer.h"
 }
 
 float * get_network_output_gpu_layer(network net, int i);
@@ -52,6 +54,83 @@ void forward_network_gpu(network net, network_state state)
         }
         l.forward_gpu(l, state);
         state.input = l.output_gpu;
+        if (l.type == MAP) break;
+    }
+}
+
+void forward_network_index_gpu(network net, network_state state, int index)
+{
+    state.workspace = net.workspace;
+    int i;
+    for(i = index; i < net.n; ++i){
+        state.index = i;
+        layer l = net.layers[i];
+        if(l.delta_gpu){
+            fill_ongpu(l.outputs * l.batch, 0, l.delta_gpu, 1);
+        }
+        l.forward_gpu(l, state);
+        state.input = l.output_gpu;
+    }
+}
+
+void backward_network_index_gpu(network net, network_state state, int index)
+{
+    state.workspace = net.workspace;
+    int i;
+    float * original_input = state.input;
+    float * original_delta = state.delta;
+    for(i = net.n-1; i >= index; --i){
+        state.index = i;
+        layer l = net.layers[i];
+        if(i == 0){
+            state.input = original_input;
+            state.delta = original_delta;
+        }else{
+            layer prev = net.layers[i-1];
+            state.input = prev.output_gpu;
+            state.delta = prev.delta_gpu;
+        }
+        l.backward_gpu(l, state);
+    }
+}
+
+void forward_network_map_gpu(network net, network_state state, int index, int n, int w, int h, int* x, int* y)
+{
+    state.workspace = net.workspace;
+    int i;
+    for(i = index; i < net.n; ++i){
+        state.index = i;
+        layer l = net.layers[i];
+        if(l.delta_gpu){
+            fill_ongpu(l.outputs * l.batch, 0, l.delta_gpu, 1);
+        }
+        if (l.type == MAPLOSS){
+            forward_maploss_layer_gpu(l, state, n, h, w, x, y);
+            break;
+        }
+        l.forward_gpu(l, state);
+        state.input = l.output_gpu;
+    }
+}
+
+void backward_network_map_gpu(network net, network_state state, int index, int n, int w, int h)
+{
+    state.workspace = net.workspace;
+    int i;
+    float * original_input = state.input;
+    float * original_delta = state.delta;
+    for(i = net.n-1; i >= index; --i){
+        state.index = i;
+        layer l = net.layers[i];
+        if(i == 0){
+            state.input = original_input;
+            state.delta = original_delta;
+        }else{
+            layer prev = net.layers[i-1];
+            state.input = prev.output_gpu;
+            state.delta = prev.delta_gpu;
+        }
+        l.backward_gpu(l, state);
     }
 }
 
@@ -64,6 +143,11 @@ void backward_network_gpu(network net, network_state state)
     for(i = net.n-1; i >= 0; --i){
         state.index = i;
         layer l = net.layers[i];
+        if(l.type == MAPLOSS){
+            while(l.type != MAP){
+                l = net.layers[--i];
+            }
+        }
         if(i == 0){
             state.input = original_input;
             state.delta = original_delta;

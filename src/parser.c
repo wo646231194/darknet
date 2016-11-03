@@ -29,6 +29,8 @@
 #include "list.h"
 #include "option_list.h"
 #include "utils.h"
+#include "map_layer.h"
+#include "maploss_layer.h"
 
 typedef struct{
     char *type;
@@ -68,6 +70,8 @@ LAYER_TYPE string_to_layer_type(char * type)
     if (strcmp(type, "[soft]")==0
             || strcmp(type, "[softmax]")==0) return SOFTMAX;
     if (strcmp(type, "[route]")==0) return ROUTE;
+    if (strcmp(type, "[map]")==0) return MAP;
+    if (strcmp(type, "[maploss]")==0) return MAPLOSS;
     return BLANK;
 }
 
@@ -345,6 +349,41 @@ maxpool_layer parse_maxpool(list *options, size_params params)
     if(!(h && w && c)) error("Layer before maxpool layer must output image.");
 
     maxpool_layer layer = make_maxpool_layer(batch,h,w,c,size,stride,padding);
+    return layer;
+}
+
+map_layer parse_map(list *options, size_params params)
+{
+    int stride = option_find_int(options, "stride",1);
+    int size = option_find_int(options, "size",stride);
+    int padding = option_find_int_quiet(options, "padding", (size-1)/2);
+    int classes = option_find_int(options, "classes",1);
+
+    int batch,h,w,c;
+    h = params.h;
+    w = params.w;
+    c = params.c;
+    batch=params.batch;
+    if(!(h && w && c)) error("Layer before map layer must output image.");
+
+    map_layer layer = make_map_layer(batch,h,w,c,size,stride,padding,classes);
+    return layer;
+}
+
+maploss_layer parse_maploss(list *options, size_params params)
+{
+    int classes = option_find_int(options, "classes", 1);
+    int coords = option_find_int(options, "coords", 1);
+    int size = option_find_int(options, "size", 1);
+    float step = option_find_float(options, "step", 1.4);
+    int h = option_find_int(options, "height", 14);
+    maploss_layer layer = make_maploss_layer(params.batch, params.inputs, classes, coords, size, step, h);
+
+    layer.object_scale = option_find_float(options, "object_scale", 1);
+    layer.noobject_scale = option_find_float(options, "noobject_scale", 1);
+    layer.class_scale = option_find_float(options, "class_scale", 1);
+    layer.coord_scale = option_find_float(options, "coord_scale", 1);
+    layer.jitter = option_find_float(options, "jitter", .2);
     return layer;
 }
 
@@ -637,6 +676,10 @@ network parse_network_cfg(char *filename)
             l.output_gpu = net.layers[count-1].output_gpu;
             l.delta_gpu = net.layers[count-1].delta_gpu;
 #endif
+        }else if(lt == MAP){
+            l = parse_map(options, params);
+        }else if(lt == MAPLOSS){
+            l = parse_maploss(options, params);
         }else{
             fprintf(stderr, "Type not recognized: %s\n", s->type);
         }
