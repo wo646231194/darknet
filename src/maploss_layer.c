@@ -10,7 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-maploss_layer make_maploss_layer(int batch, int inputs, int classes, int coords, int size, int num, int h)
+maploss_layer make_maploss_layer(int batch, int inputs, int classes, int coords, int size, int num, int h, int w)
 {
     maploss_layer l = {0};
     l.type = MAPLOSS;
@@ -20,7 +20,7 @@ maploss_layer make_maploss_layer(int batch, int inputs, int classes, int coords,
     l.classes = classes;
     l.coords = coords;
     l.size = size;
-    l.w = h;
+    l.w = w;
     l.h = h;
     fprintf(stderr, "MapLoss Layer : %d scale\n", num);
     assert(num*(classes+coords) == inputs);

@@ -6,7 +6,7 @@
 
 typedef layer maploss_layer;
 
-maploss_layer make_maploss_layer(int batch, int inputs, int classes, int coords, int size, int num, int h);
+maploss_layer make_maploss_layer(int batch, int inputs, int classes, int coords, int size, int num, int h, int w);
 void forward_maploss_layer(const maploss_layer l, network_state state, int n, int height, int width, int* x, int* y);
 void forward_maploss_layer_test(const maploss_layer l, float* in_cpu, int n, int height, int width, int* x, int* y);
 void backward_maploss_layer(const maploss_layer l, network_state state);
