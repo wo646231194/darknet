@@ -101,7 +101,7 @@ void print_pyramid_detections(FILE **fps, char *id, box *boxes, float **probs, i
 
         for(j = 0; j < classes; ++j){
             if (probs[i][j]) fprintf(fps[j], "%s %f %f %f %f %f\n", id, probs[i][j],
-                    xmin, ymin, xmax, ymax);
+                    xmin*w, ymin*h, xmax*w, ymax*h);
         }
     }
 }
@@ -116,9 +116,9 @@ void validate_pyramid(char *cfgfile, char *weightfile)
     fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net.learning_rate, net.momentum, net.decay);
     srand(time(0));
 
-    char *base = "results/comp4_det_test_";
+    char *base = "results/pixelbox_";
     //list *plist = get_paths("data/voc.2007.test");
-    list *plist = get_paths("/home/pjreddie/data/voc/2007_test.txt");
+    list *plist = get_paths("/home/huyang/桌面/Darknet/Caltech_data/Caltech/test.txt");
     //list *plist = get_paths("data/voc.2012.test");
     char **paths = (char **)list_to_array(plist);
 
@@ -132,15 +132,15 @@ void validate_pyramid(char *cfgfile, char *weightfile)
         snprintf(buff, 1024, "%s%s.txt", base, object_name[j]);
         fps[j] = fopen(buff, "w");
     }
-    box *boxes = calloc(l.side*l.side*l.n, sizeof(box));
-    float **probs = calloc(l.side*l.side*l.n, sizeof(float *));
-    for(j = 0; j < l.side*l.side*l.n; ++j) probs[j] = calloc(classes, sizeof(float *));
+    box *boxes = calloc(l.outputs / 5, sizeof(box));
+    float **probs = calloc(l.outputs / 5, sizeof(float *));
+    for (j = 0; j < l.outputs / 5; ++j) probs[j] = calloc(l.classes, sizeof(float *));
 
     int m = plist->size;
     int i=0;
     int t;
 
-    float thresh = .001;
+    float thresh = .01;
     int nms = 1;
     float iou_thresh = .5;
 
@@ -184,8 +184,8 @@ void validate_pyramid(char *cfgfile, char *weightfile)
             int w = val[t].w;
             int h = val[t].h;
             get_maploss_boxes(l, w, h, thresh, probs, boxes, 0);
-            if (nms) do_nms_sort(boxes, probs, l.side*l.side*l.n, classes, iou_thresh);
-            print_pyramid_detections(fps, id, boxes, probs, l.side*l.side*l.n, classes, w, h);
+            if (nms) do_nms_sort(boxes, probs, l.outputs / 5, l.classes, iou_thresh);
+            print_pyramid_detections(fps, id, boxes, probs, l.outputs / 5, l.classes, w, h);
             free(id);
             free_image(val[t]);
             free_image(val_resized[t]);

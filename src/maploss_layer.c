@@ -144,6 +144,11 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
         gradient_array(h_theta_y, 1, active, delta);
         l.delta[p_index] = delta[0]*l.object_scale;
         pos_loss -= log(h_theta_y[0]);
+
+        truth.x /= width;
+        truth.y /= height;
+        out.x /= width;
+        out.y /= height;
         
         iou += box_iou(truth, out);
 
