@@ -587,3 +587,10 @@ void free_network(network net)
     if(net.truth_gpu) free(net.truth_gpu);
 #endif
 }
+
+int* get_maploss_layer_indexes(network net)
+{
+    int i;
+    for(i = net.n-1; i > 0; --i) if(net.layers[i].type == MAPLOSS) break;
+    return net.layers[i].indexes;
+}

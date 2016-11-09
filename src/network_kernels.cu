@@ -36,6 +36,8 @@ extern "C" {
 #include "blas.h"
 #include "map_layer.h"
 #include "maploss_layer.h"
+#include "roipool_layer.h"
+#include "roiloss_layer.h"
 }
 
 float * get_network_output_gpu_layer(network net, int i);
@@ -106,6 +108,11 @@ void forward_network_map_gpu(network net, network_state state, int index, int n,
         }
         if (l.type == MAPLOSS){
             forward_maploss_layer_gpu(l, state, n, h, w, x, y);
+            state.input = l.output_gpu;
+            continue;
+        }
+        if (l.type == ROILOSS){
+            forward_roiloss_layer_gpu(l, state, n, h, w, x, y);
             break;
         }
         l.forward_gpu(l, state);
@@ -122,6 +129,9 @@ void backward_network_map_gpu(network net, network_state state, int index, int n
     for(i = net.n-1; i >= index; --i){
         state.index = i;
         layer l = net.layers[i];
+        if(l.type == ROIPOOL){
+            return;
+        }
         if(i == 0){
             state.input = original_input;
             state.delta = original_delta;
@@ -143,7 +153,7 @@ void backward_network_gpu(network net, network_state state)
     for(i = net.n-1; i >= 0; --i){
         state.index = i;
         layer l = net.layers[i];
-        if(l.type == MAPLOSS){
+        if(l.type == MAPLOSS || l.type == ROILOSS){
             while(l.type != MAP){
                 l = net.layers[--i];
             }

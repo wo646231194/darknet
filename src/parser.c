@@ -31,6 +31,8 @@
 #include "utils.h"
 #include "map_layer.h"
 #include "maploss_layer.h"
+#include "roipool_layer.h"
+#include "roiloss_layer.h"
 
 typedef struct{
     char *type;
@@ -72,6 +74,8 @@ LAYER_TYPE string_to_layer_type(char * type)
     if (strcmp(type, "[route]")==0) return ROUTE;
     if (strcmp(type, "[map]")==0) return MAP;
     if (strcmp(type, "[maploss]")==0) return MAPLOSS;
+    if (strcmp(type, "[roipool]")==0) return ROIPOOL;
+    if (strcmp(type, "[roiloss]")==0) return ROILOSS;
     return BLANK;
 }
 
@@ -375,15 +379,47 @@ maploss_layer parse_maploss(list *options, size_params params)
     int classes = option_find_int(options, "classes", 1);
     int coords = option_find_int(options, "coords", 1);
     int size = option_find_int(options, "size", 1);
-    int num = option_find_float(options, "num", 1.4);
+    int num = option_find_float(options, "num", 7);
     int h = option_find_int(options, "height", 14);
     int w = option_find_int(options, "width", 14);
-    maploss_layer layer = make_maploss_layer(params.batch, params.inputs, classes, coords, size, num, h, w);
+    int step = option_find_int(options, "step", 0);
+    maploss_layer layer = make_maploss_layer(params.batch, params.inputs, classes, coords, size, num, h, w, step);
 
     layer.object_scale = option_find_float(options, "object_scale", 1);
     layer.noobject_scale = option_find_float(options, "noobject_scale", 1);
     layer.class_scale = option_find_float(options, "class_scale", 1);
     layer.coord_scale = option_find_float(options, "coord_scale", 1);
+    layer.jitter = option_find_float(options, "jitter", .2);
+    return layer;
+}
+
+roipool_layer parse_roipool(list *options, size_params params)
+{
+    int index = option_find_float(options, "index", 24);//--------------------which layer not scale
+    int out_h = option_find_int(options, "height", 3);
+    int out_w = option_find_int(options, "width", 3);
+
+    int batch,h,w,c,n,inputs;
+    h = option_find_int(options, "h", 14);
+    w = option_find_int(options, "w", 14);
+    c = option_find_int(options, "c", 1024);
+    int num = option_find_int(options, "num", 7);
+    batch=params.batch;
+    inputs=params.inputs;
+    roipool_layer layer = make_roipool_layer(batch,inputs,h,w,c,out_h,out_w,num,index);
+
+    return layer;
+}
+
+roiloss_layer parse_roiloss(list *options, size_params params)
+{
+    int classes = option_find_int(options, "classes", 1);
+    int coords = option_find_int(options, "coords", 1);
+    int num = option_find_int(options, "num", 7);
+    int h = option_find_int(options, "height", 14);
+    int w = option_find_int(options, "width", 14);
+    roiloss_layer layer = make_roiloss_layer(params.batch, params.inputs, classes, coords, num, h, w);
+
     layer.jitter = option_find_float(options, "jitter", .2);
     return layer;
 }
@@ -681,6 +717,11 @@ network parse_network_cfg(char *filename)
             l = parse_map(options, params);
         }else if(lt == MAPLOSS){
             l = parse_maploss(options, params);
+        }else if(lt == ROIPOOL){
+            l = parse_roipool(options, params);
+            params.batch = l.batch;
+        }else if(lt == ROILOSS){
+            l = parse_roiloss(options, params);
         }else{
             fprintf(stderr, "Type not recognized: %s\n", s->type);
         }

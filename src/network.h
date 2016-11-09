@@ -86,6 +86,7 @@ void backward_network_gpu(network net, network_state state);
 void backward_network_index_gpu(network net, network_state state, int index);
 void backward_network_map_gpu(network net, network_state state, int index, int n, int w, int h);
 void update_network_gpu(network net);
+float *get_network_output_layer_gpu(network net, int i);
 #endif
 
 float get_current_rate(network net);
@@ -128,6 +129,7 @@ float get_network_cost(network net);
 
 int get_network_nuisance(network net);
 int get_network_background(network net);
+int* get_maploss_layer_indexes(network net);
 
 #endif
 

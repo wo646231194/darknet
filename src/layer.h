@@ -36,7 +36,9 @@ typedef enum {
     REORG,
     BLANK,
     MAP,
-    MAPLOSS
+    MAPLOSS,
+    ROIPOOL,
+    ROILOSS
 } LAYER_TYPE;
 
 typedef enum{
