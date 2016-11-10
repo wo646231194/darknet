@@ -85,13 +85,9 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
                 while(state.truth[truth_index]==1){
                     box truth;
                     truth = float_to_box(state.truth + truth_index + 1 + l.classes);
-                    
-                    truth.x /= width;
-                    truth.y /= height;
-                    out.x /= width;
-                    out.y /= height;
+
                     float tiou = box_iou(truth, out);
-                    if(tiou>0.7){
+                    if(tiou>0.5){
                         siou += tiou;
                         count++;
                         l.indexes[i*l.n + j] = 1;//----pos----

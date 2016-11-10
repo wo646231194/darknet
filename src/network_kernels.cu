@@ -38,6 +38,7 @@ extern "C" {
 #include "maploss_layer.h"
 #include "roipool_layer.h"
 #include "roiloss_layer.h"
+#include "centerpool_layer.h"
 }
 
 float * get_network_output_gpu_layer(network net, int i);
@@ -118,6 +119,12 @@ void forward_network_map_gpu(network net, network_state state, int index, int n,
             state.input = l.output_gpu;
             continue;
         }
+        if (l.type == CENTERPOOL){
+            l.batch = batch / l.n; batch = 0;
+            forward_centerpool_layer(l, state, n, h, w, x, y);
+            state.input = l.output_gpu;
+            continue;
+        }
         if (l.type == ROILOSS){
             forward_roiloss_layer_gpu(l, state, n, h, w, x, y);
             break;
@@ -136,7 +143,7 @@ void backward_network_map_gpu(network net, network_state state, int index, int n
     for(i = net.n-1; i >= index; --i){
         state.index = i;
         layer l = net.layers[i];
-        if(l.type == ROIPOOL){
+        if(l.type == ROIPOOL || l.type == CENTERPOOL){
             return;
         }
         if(i == 0){

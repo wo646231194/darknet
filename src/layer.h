@@ -38,7 +38,8 @@ typedef enum {
     MAP,
     MAPLOSS,
     ROIPOOL,
-    ROILOSS
+    ROILOSS,
+    CENTERPOOL
 } LAYER_TYPE;
 
 typedef enum{

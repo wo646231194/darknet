@@ -62,8 +62,8 @@ void backward_roiloss_layer(const roiloss_layer l, network_state state)
 
 void forward_roiloss_layer_gpu(const roiloss_layer l, network_state state, int n, int height, int width, int* x, int* y)
 {
-    float *in_cpu = calloc(l.batch*l.inputs, sizeof(float));//-----in_cpu
-    cuda_pull_array(state.input, in_cpu, l.batch*l.inputs);
+    float *in_cpu = calloc(l.outputs, sizeof(float));//-----in_cpu
+    cuda_pull_array(state.input, in_cpu, l.outputs);
     if(!state.train){
         float *mapout = get_maploss_layer_output(state.net);
         int i,j;
@@ -85,7 +85,8 @@ void forward_roiloss_layer_gpu(const roiloss_layer l, network_state state, int n
     float neg_loss = 0, pos_loss=0;
     int count = 0, i;
     int *truth = get_maploss_layer_indexes(state.net);
-    for(i=0;i<l.batch;i++){
+    memset(l.delta, 0, l.outputs * sizeof(float));
+    for(i=0;i<l.outputs;i++){
         l.delta[i] = truth[i] - in_cpu[i];
         if(truth[i]==1){
             count++;
@@ -95,15 +96,15 @@ void forward_roiloss_layer_gpu(const roiloss_layer l, network_state state, int n
         }
     }
     if(count)
-    *(l.cost) += pos_loss/count + neg_loss/(l.batch - count);
+    *(l.cost) += pos_loss/count + neg_loss/(l.outputs - count);
 
-    if(count) printf("Pos loss: %f, Neg loss: %f, count %d\n", pos_loss/count, neg_loss/(l.batch - count), count);
-    cuda_push_array(l.delta_gpu, l.delta, l.batch*l.inputs);
+    if(count) printf("Pos loss: %f, Neg loss: %f, count %d\n", pos_loss/count, neg_loss/(l.outputs - count), count);
+    cuda_push_array(l.delta_gpu, l.delta, l.batch*l.outputs);
 }
 
 void backward_roiloss_layer_gpu(roiloss_layer l, network_state state)
 {
-    axpy_ongpu(l.batch*l.inputs, 1, l.delta_gpu, 1, state.delta, 1);
+    axpy_ongpu(l.batch*l.outputs, 1, l.delta_gpu, 1, state.delta, 1);
     //copy_ongpu(l.batch*l.inputs, l.delta_gpu, 1, state.delta, 1);
 }
 #endif

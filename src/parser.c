@@ -33,6 +33,7 @@
 #include "maploss_layer.h"
 #include "roipool_layer.h"
 #include "roiloss_layer.h"
+#include "centerpool_layer.h"
 
 typedef struct{
     char *type;
@@ -76,6 +77,7 @@ LAYER_TYPE string_to_layer_type(char * type)
     if (strcmp(type, "[maploss]")==0) return MAPLOSS;
     if (strcmp(type, "[roipool]")==0) return ROIPOOL;
     if (strcmp(type, "[roiloss]")==0) return ROILOSS;
+    if (strcmp(type, "[centerpool]")==0) return CENTERPOOL;
     return BLANK;
 }
 
@@ -424,6 +426,24 @@ roiloss_layer parse_roiloss(list *options, size_params params)
     return layer;
 }
 
+centerpool_layer parse_centerpool(list *options, size_params params)
+{
+    int index = option_find_float(options, "index", 24);//--------------------which layer not scale
+    int out_h = option_find_int(options, "height", 3);
+    int out_w = option_find_int(options, "width", 3);
+
+    int batch,h,w,c,n,inputs;
+    h = option_find_int(options, "h", 14);
+    w = option_find_int(options, "w", 14);
+    c = option_find_int(options, "c", 1024);
+    int num = option_find_int(options, "num", 7);
+    batch=params.batch;
+    inputs=params.inputs;
+    centerpool_layer layer = make_centerpool_layer(batch,inputs,h,w,c,out_h,out_w,num,index);
+
+    return layer;
+}
+
 avgpool_layer parse_avgpool(list *options, size_params params)
 {
     int batch,w,h,c;
@@ -722,6 +742,8 @@ network parse_network_cfg(char *filename)
             params.batch = l.batch;
         }else if(lt == ROILOSS){
             l = parse_roiloss(options, params);
+        }else if(lt == CENTERPOOL){
+            l = parse_centerpool(options, params);
         }else{
             fprintf(stderr, "Type not recognized: %s\n", s->type);
         }
