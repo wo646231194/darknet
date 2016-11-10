@@ -287,7 +287,11 @@ void test_pyramid(char *cfgfile, char *weightfile, char *filename, float thresh)
     if(weightfile){
         load_weights(&net, weightfile);
     }
-    maploss_layer l = net.layers[net.n-1];
+    int neti = net.n-1;
+    maploss_layer l = net.layers[neti];
+    while(l.type!=MAPLOSS){
+        l = net.layers[--neti];
+    }
     set_batch_network(&net, 1);
     srand(2222222);
     clock_t time;

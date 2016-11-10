@@ -29,11 +29,7 @@ maploss_layer make_maploss_layer(int batch, int inputs, int classes, int coords,
     l.cost = calloc(1, sizeof(float));
     l.outputs = l.inputs*l.w*l.h;
     l.truths = 50*(5+l.classes);//if 50 person one image
-    if(l.size>0){
-        l.output = calloc(batch*l.outputs, sizeof(float));
-    }else{
-        l.output = calloc(batch*l.inputs, sizeof(float));
-    }
+    l.output = calloc(batch*l.outputs, sizeof(float));
     l.delta = calloc(batch*l.inputs, sizeof(float));
     l.indexes = calloc(batch*l.n, sizeof(int));
 
@@ -42,11 +38,7 @@ maploss_layer make_maploss_layer(int batch, int inputs, int classes, int coords,
 #ifdef GPU
     // l.forward_gpu = forward_maploss_layer_gpu;
     l.backward_gpu = backward_maploss_layer_gpu;
-    if(l.size>0){
-        l.output_gpu = cuda_make_array(l.output, batch*l.outputs);
-    }else{
-        l.output_gpu = cuda_make_array(l.output, batch*l.inputs);
-    }
+    l.output_gpu = cuda_make_array(l.output, batch*l.outputs);
     l.delta_gpu = cuda_make_array(l.delta, batch*l.inputs);
 #endif
 
@@ -71,6 +63,7 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
     if(l.size==0){
         float siou = 0.0;
         for (i = 0; i < l.batch; ++i){
+            int cell_index = y[i] * l.w + x[i];
             for (j = 0; j < l.n; ++j){
                 int in = (i*l.n + j)*(l.coords + l.classes);
                 float h_theta_y[1] = { state.input[in] };
@@ -82,11 +75,11 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
                 out.h = out.h*out.h;
                 out.w = out.h * 0.41 / 64 * 48;
 
-                l.output[in + 0] = h_theta_y[0];
-                l.output[in + 1] = out.x-out.w/2;//left
-                l.output[in + 2] = out.y-out.h/2;//top
-                l.output[in + 3] = out.w+out.w/2;//right
-                l.output[in + 4] = out.h+out.h/2;//bottom
+                l.output[cell_index*l.inputs + in + 0] = h_theta_y[0];
+                l.output[cell_index*l.inputs + in + 1] = out.x-out.w/2;//left
+                l.output[cell_index*l.inputs + in + 2] = out.y-out.h/2;//top
+                l.output[cell_index*l.inputs + in + 3] = out.x+out.w/2;//right
+                l.output[cell_index*l.inputs + in + 4] = out.y+out.h/2;//bottom
 
                 int truth_index = i * 50 * (5 + l.classes),t=0;
                 while(state.truth[truth_index]==1){
@@ -143,6 +136,8 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
 
         truth.x = truth.x*width - x[i];
         truth.y = truth.y*height - y[i];
+        truth.x /= width;
+        truth.y /= height;
 
         int best_index = -1;
         float best_iou = 0;
@@ -156,8 +151,6 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
             out.h = out.h*out.h;
             out.w = out.h * 0.41 / 64 * 48;
 
-            truth.x /= width;
-            truth.y /= height;
             out.x /= width;
             out.y /= height;
 
@@ -174,27 +167,27 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
                     best_index = j;
                 }
             }
-            if(l.steps == 1 && tiou > 0.5){
+            if(l.steps == 1 && tiou > 0.7){
                 count++;
                 // int p_index = i*l.inputs + j*(l.coords + l.classes);
                 //---------------fix box---------------
                 // box out = float_to_box(state.input + p_index + 1);
 
-                out.h = out.h*out.h;
-                out.w = out.h * 0.41 / 64 * 48;
+                // out.h = out.h*out.h;
+                // out.w = out.h * 0.41 / 64 * 48;
 
-                float coord[4] = { out.x , out.y , 0, state.input[p_index+4] };
-                float tcoord[4] = { truth.x, truth.y, 0, sqrt(truth.h) };
-                float dcoord[4] = { 0 };
-                float ecoord[4] = { 0 };
+                // float coord[4] = { out.x , out.y , 0, state.input[p_index+4] };
+                // float tcoord[4] = { truth.x, truth.y, 0, sqrt(truth.h) };
+                // float dcoord[4] = { 0 };
+                // float ecoord[4] = { 0 };
 
                 //----------------loc loss--------------------
-                l2_cpu(4, coord, tcoord, dcoord, ecoord);
-                l.delta[p_index + 1] = dcoord[0]*l.coord_scale;
-                l.delta[p_index + 2] = dcoord[1]*l.coord_scale;
-                l.delta[p_index + 3] = dcoord[2]*l.coord_scale;
-                l.delta[p_index + 4] = dcoord[3]*l.coord_scale;
-                loc_loss += sum_array(ecoord, 4);
+                // l2_cpu(4, coord, tcoord, dcoord, ecoord);
+                // l.delta[p_index + 1] = dcoord[0]*l.coord_scale;
+                // l.delta[p_index + 2] = dcoord[1]*l.coord_scale;
+                // l.delta[p_index + 3] = dcoord[2]*l.coord_scale;
+                // l.delta[p_index + 4] = dcoord[3]*l.coord_scale;
+                // loc_loss += sum_array(ecoord, 4);
 
                 //-----------------pos loss--------------------
                 float h_theta_y[1] = { state.input[p_index] };
@@ -207,7 +200,7 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
                 iou += tiou;
             }
         }
-        if(best_iou > 0.5){
+        // if(best_iou <= 0.7){
 
             count++;
             int p_index = i*l.inputs + best_index*(l.coords + l.classes);
@@ -238,13 +231,13 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
             l.delta[p_index] = delta[0]*l.object_scale;
             pos_loss -= log(h_theta_y[0]);
 
-            truth.x /= width;
-            truth.y /= height;
+            // truth.x /= width;
+            // truth.y /= height;
             out.x /= width;
             out.y /= height;
             
             iou += box_iou(truth, out);
-        }
+        // }
     }
     *(l.cost) += pos_loss + neg_loss/l.n + loc_loss;
 
@@ -270,11 +263,19 @@ void forward_maploss_layer_test(const maploss_layer l, float* in_cpu, int n, int
             out.h = out.h*out.h;
             out.w = out.h * 0.41 / 64 * 48;
 
-            l.output[cell_index*l.inputs + p_index + 0] = h_theta_y[0];
-            l.output[cell_index*l.inputs + p_index + 1] = out.x;
-            l.output[cell_index*l.inputs + p_index + 2] = out.y;
-            l.output[cell_index*l.inputs + p_index + 3] = out.w;
-            l.output[cell_index*l.inputs + p_index + 4] = out.h;
+            if(l.size == 0){
+                l.output[cell_index*l.inputs + p_index + 0] = h_theta_y[0];
+                l.output[cell_index*l.inputs + p_index + 1] = out.x-out.w/2;//left
+                l.output[cell_index*l.inputs + p_index + 2] = out.y-out.h/2;//top
+                l.output[cell_index*l.inputs + p_index + 3] = out.x+out.w/2;//right
+                l.output[cell_index*l.inputs + p_index + 4] = out.y+out.h/2;//bottom
+            }else{
+                l.output[cell_index*l.inputs + p_index + 0] = h_theta_y[0];
+                l.output[cell_index*l.inputs + p_index + 1] = out.x;
+                l.output[cell_index*l.inputs + p_index + 2] = out.y;
+                l.output[cell_index*l.inputs + p_index + 3] = out.w;
+                l.output[cell_index*l.inputs + p_index + 4] = out.h;
+            }
         }
     }
 }
@@ -320,7 +321,7 @@ void forward_maploss_layer_gpu(const maploss_layer l, network_state state, int n
     cpu_state.truth = truth_cpu;
     cpu_state.input = in_cpu;
     forward_maploss_layer(l, cpu_state, n, height, width, x, y);
-    cuda_push_array(l.output_gpu, l.output, l.batch*l.inputs);
+    cuda_push_array(l.output_gpu, l.output, l.batch*l.outputs);
     cuda_push_array(l.delta_gpu, l.delta, l.batch*l.inputs);
     free(cpu_state.input);
     if(cpu_state.truth) free(cpu_state.truth);//---------------------------truth_cpu end

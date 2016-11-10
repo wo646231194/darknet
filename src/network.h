@@ -124,12 +124,14 @@ void print_network(network net);
 void visualize_network(network net);
 int resize_network(network *net, int w, int h);
 void set_batch_network(network *net, int b);
+void set_batch_network_index(network *net, int b, int index);
 int get_network_input_size(network net);
 float get_network_cost(network net);
 
 int get_network_nuisance(network net);
 int get_network_background(network net);
 int* get_maploss_layer_indexes(network net);
+float* get_maploss_layer_output(network net);
 
 #endif
 

@@ -65,7 +65,21 @@ void forward_roiloss_layer_gpu(const roiloss_layer l, network_state state, int n
     float *in_cpu = calloc(l.batch*l.inputs, sizeof(float));//-----in_cpu
     cuda_pull_array(state.input, in_cpu, l.batch*l.inputs);
     if(!state.train){
-
+        float *mapout = get_maploss_layer_output(state.net);
+        int i,j;
+        for (i = 0; i < 1; ++i){
+            int cell_index = y[i] * l.w + x[i];
+            for (j = 0; j < l.n; ++j){
+                int p_index = i*l.n + j;
+                box out  = float_to_box(mapout + cell_index*l.n*5 + p_index*5 + 1);
+                mapout[cell_index*l.n*5 + p_index*5 + 0] = in_cpu[p_index];
+                mapout[cell_index*l.n*5 + p_index*5 + 1] = (out.x+out.w)/2;
+                mapout[cell_index*l.n*5 + p_index*5 + 2] = (out.y+out.h)/2;
+                mapout[cell_index*l.n*5 + p_index*5 + 3] = out.w-out.x;
+                mapout[cell_index*l.n*5 + p_index*5 + 4] = out.h-out.y;
+            }
+        }
+        return;
     }
 
     float neg_loss = 0, pos_loss=0;

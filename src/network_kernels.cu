@@ -99,7 +99,7 @@ void backward_network_index_gpu(network net, network_state state, int index)
 void forward_network_map_gpu(network net, network_state state, int index, int n, int w, int h, int* x, int* y)
 {
     state.workspace = net.workspace;
-    int i;
+    int i,batch=0;
     for(i = index; i < net.n; ++i){
         state.index = i;
         layer l = net.layers[i];
@@ -108,6 +108,13 @@ void forward_network_map_gpu(network net, network_state state, int index, int n,
         }
         if (l.type == MAPLOSS){
             forward_maploss_layer_gpu(l, state, n, h, w, x, y);
+            state.input = l.output;
+            batch = l.batch * l.n;//change batch
+            continue;
+        }
+        if(batch) l.batch = batch;
+        if (l.type == ROIPOOL){
+            forward_roipool_layer(l, state, n, h, w, x, y);
             state.input = l.output_gpu;
             continue;
         }

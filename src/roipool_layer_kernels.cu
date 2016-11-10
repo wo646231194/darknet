@@ -25,10 +25,11 @@ __global__ void forward_roipool_layer_kernel(int n, int in_h, int in_w, int in_c
 
     int pool_index = j + out_w*(i + out_h*(k + in_c*b));
 
-    int roi_start_w = roi[s*5+1] * in_w;
-    int roi_start_h = roi[s*5+2] * in_h;
-    // int roi_end_w = roi[s*5+3] * in_w;
-    int roi_end_h = roi[s*5+4] * in_h;
+    int p_index = (s + b*num) * 5;
+    int roi_start_w = roi[p_index+1] * in_w;
+    int roi_start_h = roi[p_index+2] * in_h;
+    // int roi_end_w = roi[p_index+3] * in_w;
+    int roi_end_h = roi[p_index+4] * in_h;
     int roi_end_w = roi_end_h;
 
     int roi_height = max(roi_end_h - roi_start_h + 1, 1);
@@ -50,7 +51,7 @@ __global__ void forward_roipool_layer_kernel(int n, int in_h, int in_w, int in_c
     int is_empty = (hend <= hstart) || (wend <= wstart);
 
     float maxval = is_empty ? 0 : -INFINITY;
-    input = input + s * in_h * in_w * in_c;
+    input = input + s * in_h * in_w * in_c + k * in_h * in_w;
     for(int ih = hstart; ih < hend; ++ih){
         for(int iw = wstart; iw < wend; ++iw){
             int in = ih * in_w + iw;
@@ -67,19 +68,19 @@ __global__ void forward_roipool_layer_kernel(int n, int in_h, int in_w, int in_c
     
 // }
 
-extern "C" void forward_roipool_layer_gpu(roipool_layer layer, network_state state)
+extern "C" void forward_roipool_layer_gpu(roipool_layer l, network_state state)
 {
-    int h = layer.out_h;
-    int w = layer.out_w;
-    int c = layer.c;
+    int h = l.out_h;
+    int w = l.out_w;
+    int c = l.c;
 
-    size_t n = h*w*c*layer.batch;
+    size_t n = h*w*c*l.batch;
 
-    LAYER_TYPE type = state.net.layers[layer.index].type;
-    if(type != CONVOLUTIONAL) printf("ROI index is not correct\n");
-    float *conv = state.net.layers[layer.index].output_gpu;
+    layer conv = state.net.layers[l.index];
+    if(conv.type != CONVOLUTIONAL) error("ROI index is error\n");
+    if(conv.c!= l.c || conv.h!=l.h || conv.w!=l.w) error("ROI width height channel is error\n");
 
-    forward_roipool_layer_kernel<<<cuda_gridsize(n), BLOCK>>>(n, layer.h, layer.w, layer.c, layer.out_h, layer.out_w, state.input, conv, layer.output_gpu, layer.indexes_gpu, layer.n);
+    forward_roipool_layer_kernel<<<cuda_gridsize(n), BLOCK>>>(n, l.h, l.w, l.c, l.out_h, l.out_w, state.input, conv.output_gpu, l.output_gpu, l.indexes_gpu, l.n);
     check_error(cudaPeekAtLastError());
 }
 

@@ -319,6 +319,14 @@ void set_batch_network(network *net, int b)
     }
 }
 
+void set_batch_network_index(network *net, int b, int index){
+    net->batch = b;
+    int i;
+    for(i = 0; i < index; ++i){
+        net->layers[i].batch = b;
+    }
+}
+
 int resize_network(network *net, int w, int h)
 {
     int i;
@@ -593,4 +601,10 @@ int* get_maploss_layer_indexes(network net)
     int i;
     for(i = net.n-1; i > 0; --i) if(net.layers[i].type == MAPLOSS) break;
     return net.layers[i].indexes;
+}
+
+float* get_maploss_layer_output(network net){
+    int i;
+    for(i = net.n-1; i > 0; --i) if(net.layers[i].type == MAPLOSS) break;
+    return net.layers[i].output;
 }
