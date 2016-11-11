@@ -73,10 +73,10 @@ void forward_roiloss_layer_gpu(const roiloss_layer l, network_state state, int n
                 int p_index = i*l.n + j;
                 box out  = float_to_box(mapout + cell_index*l.n*5 + p_index*5 + 1);
                 mapout[cell_index*l.n*5 + p_index*5 + 0] = in_cpu[p_index];
-                mapout[cell_index*l.n*5 + p_index*5 + 1] = (out.x+out.w)/2;
-                mapout[cell_index*l.n*5 + p_index*5 + 2] = (out.y+out.h)/2;
-                mapout[cell_index*l.n*5 + p_index*5 + 3] = out.w-out.x;
-                mapout[cell_index*l.n*5 + p_index*5 + 4] = out.h-out.y;
+                // mapout[cell_index*l.n*5 + p_index*5 + 1] = (out.x+out.w)/2;
+                // mapout[cell_index*l.n*5 + p_index*5 + 2] = (out.y+out.h)/2;
+                // mapout[cell_index*l.n*5 + p_index*5 + 3] = out.w-out.x;
+                // mapout[cell_index*l.n*5 + p_index*5 + 4] = out.h-out.y;
             }
         }
         return;
@@ -98,7 +98,7 @@ void forward_roiloss_layer_gpu(const roiloss_layer l, network_state state, int n
     if(count)
     *(l.cost) += pos_loss/count + neg_loss/(l.outputs - count);
 
-    if(count) printf("Pos loss: %f, Neg loss: %f, count %d\n", pos_loss/count, neg_loss/(l.outputs - count), count);
+    if(count) printf("                           Pos loss: %f, Neg loss: %f, count %d\n", pos_loss/count, neg_loss/(l.outputs - count), count);
     cuda_push_array(l.delta_gpu, l.delta, l.batch*l.outputs);
 }
 

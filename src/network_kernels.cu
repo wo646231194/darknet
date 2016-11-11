@@ -144,7 +144,9 @@ void backward_network_map_gpu(network net, network_state state, int index, int n
         state.index = i;
         layer l = net.layers[i];
         if(l.type == ROIPOOL || l.type == CENTERPOOL){
-            return;
+            while(l.type != MAPLOSS){
+                l = net.layers[--i];
+            }
         }
         if(i == 0){
             state.input = original_input;

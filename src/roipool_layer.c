@@ -55,13 +55,12 @@ void forward_roipool_layer(const roipool_layer l, network_state state, int n, in
     int batch = l.batch/l.n;
     for(b = 0; b < batch; ++b){
         int cell_index = y[b] * width + x[b];
-        int im_index = b/l.n;//image index
         for(s = 0; s < l.n; ++s){
             int p_index = (s + b*l.n) * 5 + cell_index * l.n * 5;
-            int roi_start_w = roi[p_index+1] * l.w;//left
-            int roi_start_h = roi[p_index+2] * l.h;//top
-            int roi_end_w = roi[p_index+3] * l.w;//right
-            int roi_end_h = roi[p_index+4] * l.h;//bottom
+            int roi_start_w = (float)(roi[p_index+1] - 0.5*roi[p_index+3]) * l.w;//left
+            int roi_start_h = (float)(roi[p_index+2] - 0.5*roi[p_index+4]) * l.h;//top
+            int roi_end_w = (float)(roi[p_index+1] + 0.5*roi[p_index+3]) * l.w;//right
+            int roi_end_h = (float)(roi[p_index+2] + 0.5*roi[p_index+4]) * l.h;//bottom
             if(roi[p_index+1]==0 && roi[p_index+2]==0 && roi[p_index+3]==0 && roi[p_index+4]==0) error("roi is zero");
 
             int roi_height = constrain_int(roi_end_h - roi_start_h + 1, 1, l.h);
@@ -92,7 +91,7 @@ void forward_roipool_layer(const roipool_layer l, network_state state, int n, in
                         float maxval = is_empty ? 0 : -INFINITY;
                         for(int ih = hstart; ih < hend; ++ih){
                             for(int iw = wstart; iw < wend; ++iw){
-                                int in = im_index * l.inputs + k * l.h * l.w + ih * l.w + iw;
+                                int in = b * l.inputs + k * l.h * l.w + ih * l.w + iw;
                                 if(incpu[in] > maxval){
                                     maxval = incpu[in];
                                 }

@@ -76,10 +76,10 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
                 out.w = out.h * 0.41 / 64 * 48;
 
                 l.output[cell_index*l.inputs + in + 0] = h_theta_y[0];
-                l.output[cell_index*l.inputs + in + 1] = out.x-out.w/2;//left
-                l.output[cell_index*l.inputs + in + 2] = out.y-out.h/2;//top
-                l.output[cell_index*l.inputs + in + 3] = out.x+out.w/2;//right
-                l.output[cell_index*l.inputs + in + 4] = out.y+out.h/2;//bottom
+                l.output[cell_index*l.inputs + in + 1] = out.x;
+                l.output[cell_index*l.inputs + in + 2] = out.y;
+                l.output[cell_index*l.inputs + in + 3] = out.w;
+                l.output[cell_index*l.inputs + in + 4] = out.h;
 
                 int truth_index = i * 50 * (5 + l.classes),t=0;
                 while(state.truth[truth_index]==1){
@@ -87,7 +87,7 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
                     truth = float_to_box(state.truth + truth_index + 1 + l.classes);
 
                     float tiou = box_iou(truth, out);
-                    if(tiou>0.5){
+                    if(tiou>0.7){
                         siou += tiou;
                         count++;
                         l.indexes[i*l.n + j] = 1;//----pos----
@@ -98,9 +98,10 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
             }
         }
         if(count)
-        printf("ROILoss Avg IOU: %f, ", siou / count);
-        return;
+        printf("ROILoss Avg IOU: %f\n", siou / count);
+        // return;
     }
+    count = 0;
     //----------------neg---------------
     for (i = 0; i < l.batch; ++i){
         for (j = 0; j < l.n; ++j){
@@ -207,7 +208,7 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
             out.w = out.h * 0.41 / 64 * 48;
 
             float coord[4] = { out.x , out.y , 0, state.input[p_index+4] };
-            float tcoord[4] = { truth.x, truth.y, 0, sqrt(truth.h) };
+            float tcoord[4] = { truth.x*width, truth.y*height, 0, sqrt(truth.h) };
             float dcoord[4] = { 0 };
             float ecoord[4] = { 0 };
 
@@ -259,19 +260,19 @@ void forward_maploss_layer_test(const maploss_layer l, float* in_cpu, int n, int
             out.h = out.h*out.h;
             out.w = out.h * 0.41 / 64 * 48;
 
-            if(l.size == 0){
-                l.output[cell_index*l.inputs + p_index + 0] = h_theta_y[0];
-                l.output[cell_index*l.inputs + p_index + 1] = out.x-out.w/2;//left
-                l.output[cell_index*l.inputs + p_index + 2] = out.y-out.h/2;//top
-                l.output[cell_index*l.inputs + p_index + 3] = out.x+out.w/2;//right
-                l.output[cell_index*l.inputs + p_index + 4] = out.y+out.h/2;//bottom
-            }else{
+            // if(l.size == 0){
+            //     l.output[cell_index*l.inputs + p_index + 0] = h_theta_y[0];
+            //     l.output[cell_index*l.inputs + p_index + 1] = out.x-out.w/2;//left
+            //     l.output[cell_index*l.inputs + p_index + 2] = out.y-out.h/2;//top
+            //     l.output[cell_index*l.inputs + p_index + 3] = out.x+out.w/2;//right
+            //     l.output[cell_index*l.inputs + p_index + 4] = out.y+out.h/2;//bottom
+            // }else{
                 l.output[cell_index*l.inputs + p_index + 0] = h_theta_y[0];
                 l.output[cell_index*l.inputs + p_index + 1] = out.x;
                 l.output[cell_index*l.inputs + p_index + 2] = out.y;
                 l.output[cell_index*l.inputs + p_index + 3] = out.w;
                 l.output[cell_index*l.inputs + p_index + 4] = out.h;
-            }
+            // }
         }
     }
 }
@@ -317,7 +318,7 @@ void forward_maploss_layer_gpu(const maploss_layer l, network_state state, int n
     cpu_state.truth = truth_cpu;
     cpu_state.input = in_cpu;
     forward_maploss_layer(l, cpu_state, n, height, width, x, y);
-    cuda_push_array(l.output_gpu, l.output, l.batch*l.outputs);
+    // cuda_push_array(l.output_gpu, l.output, l.batch*l.outputs);
     cuda_push_array(l.delta_gpu, l.delta, l.batch*l.inputs);
     free(cpu_state.input);
     if(cpu_state.truth) free(cpu_state.truth);//---------------------------truth_cpu end
