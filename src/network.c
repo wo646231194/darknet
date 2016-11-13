@@ -383,6 +383,12 @@ int get_network_output_size(network net)
 {
     int i;
     for(i = net.n-1; i > 0; --i) if(net.layers[i].type != COST) break;
+    if(net.layers[net.n-1].type == ROILOSS){
+        i = net.n-1;
+        while(net.layers[i].type!=MAPLOSS){
+            i--;
+        }
+    }
     return net.layers[i].outputs;
 }
 
@@ -600,6 +606,13 @@ int* get_maploss_layer_indexes(network net)
 {
     int i;
     for(i = net.n-1; i > 0; --i) if(net.layers[i].type == MAPLOSS) break;
+    return net.layers[i].indexes;
+}
+
+int* get_map_layer_indexes(network net)
+{
+    int i;
+    for(i = net.n-1; i > 0; --i) if(net.layers[i].type == MAP) break;
     return net.layers[i].indexes;
 }
 

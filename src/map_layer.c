@@ -25,7 +25,7 @@ map_layer make_map_layer(int batch, int h, int w, int c, int size, int stride, i
     l.stride = stride;
     int output_size = l.out_h * l.out_w * l.out_c * batch;
     int input_size = l.h * l.w * l.c * batch;
-    l.indexes = calloc(output_size, sizeof(int));
+    l.indexes = calloc(h*w*batch, sizeof(int));//-----------active cell-----------
     l.output =  calloc(output_size, sizeof(float));
     l.delta =   calloc(input_size, sizeof(float));
     l.forward = forward_map_layer;
@@ -33,7 +33,7 @@ map_layer make_map_layer(int batch, int h, int w, int c, int size, int stride, i
     #ifdef GPU
     l.forward_gpu = forward_map_layer_gpu;
     l.backward_gpu = backward_map_layer_gpu;
-    l.indexes_gpu = cuda_make_int_array(output_size);
+    l.indexes_gpu = cuda_make_int_array(h*w*batch);//-----------active cell-----------
     l.output_gpu  = cuda_make_array(l.output, output_size);
     l.delta_gpu   = cuda_make_array(l.delta, input_size);
     #endif
@@ -49,6 +49,14 @@ void backward_map_layer(const map_layer l, network_state state)
 {
     axpy_cpu(l.batch*l.inputs, 1, l.delta, 1, state.delta, 1);
 }
+void clear_indexes(map_layer l)
+{
+    int i;
+    int n = l.h*l.w*l.batch;
+    for(i=0;i<n;++i){
+        l.indexes[i] = 0;
+    }
+}
 
 #ifdef GPU
 
@@ -57,6 +65,7 @@ void forward_map_layer_gpu(map_layer l, network_state state)
     fill_ongpu(l.outputs*l.batch, 0, l.output_gpu, 1);
     fill_ongpu(l.inputs*l.batch, 0, l.delta_gpu, 1);
     memset(l.delta, 0, l.inputs*l.batch*sizeof(float));
+    clear_indexes(l);
     
     float *before = calloc(l.batch*l.c*l.h*l.w, sizeof(float));
     cuda_pull_array(state.input, before, l.batch*l.c*l.h*l.w);
@@ -86,6 +95,10 @@ void forward_map_layer_gpu(map_layer l, network_state state)
                 free(y); y = NULL;//-------------------------------------y end
             }
         }
+        if(l.index){
+            forward_network_index_gpu(state.net, state, l.index);
+            backward_network_index_gpu(state.net, state, l.index+1);
+        }
         cuda_push_array(state.net.layers[state.net.n - 1].output_gpu, state.net.layers[state.net.n - 1].output, state.net.layers[state.net.n - 1].outputs);
         return;
     }
@@ -108,7 +121,8 @@ void forward_map_layer_gpu(map_layer l, network_state state)
     //     m = m>num?m:num;
     // }
     //---------------forward max truth-------------------
-    *(state.net.layers[state.net.n-1].cost) = 0;
+    if(l.index) *(state.net.layers[l.index-1].cost) = 0;
+    else *(state.net.layers[state.net.n-1].cost) = 0;
     for(n=0; n < m; ++n){
         int *offset = 0;//save where to map
         offset = calloc(l.batch, sizeof(int));//-----------------------offset
@@ -129,6 +143,7 @@ void forward_map_layer_gpu(map_layer l, network_state state)
             for (j = 0; j < l.outputs; ++j){
                 l.output[j + i*l.outputs] = after[index + j];
             }
+            l.indexes[col+row*l.w+i*l.h*l.w] = b.h>0 ? 1 : 0;
             //copy_ongpu(l.outputs, state.input + index, 1, l.output_gpu + i * l.outputs, 1);
         }
         cuda_push_array(l.output_gpu, l.output, l.batch*l.outputs);
@@ -157,6 +172,11 @@ void forward_map_layer_gpu(map_layer l, network_state state)
     }
     cuda_push_array(l.delta_gpu, delta, l.batch*l.inputs);
     free(delta); delta = NULL;//----------------------------------------------delta end
+
+    if(l.index){
+        forward_network_index_gpu(state.net, state, l.index);
+        backward_network_index_gpu(state.net, state, l.index+1);
+    }
 }
 
 void backward_map_layer_gpu(map_layer l, network_state state)

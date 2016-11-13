@@ -34,6 +34,7 @@
 #include "roipool_layer.h"
 #include "roiloss_layer.h"
 #include "centerpool_layer.h"
+#include "copy_layer.h"
 
 typedef struct{
     char *type;
@@ -78,6 +79,7 @@ LAYER_TYPE string_to_layer_type(char * type)
     if (strcmp(type, "[roipool]")==0) return ROIPOOL;
     if (strcmp(type, "[roiloss]")==0) return ROILOSS;
     if (strcmp(type, "[centerpool]")==0) return CENTERPOOL;
+    if (strcmp(type, "[copy]")==0) return COPY;
     return BLANK;
 }
 
@@ -373,6 +375,7 @@ map_layer parse_map(list *options, size_params params)
     if(!(h && w && c)) error("Layer before map layer must output image.");
 
     map_layer layer = make_map_layer(batch,h,w,c,size,stride,padding,classes);
+    layer.index = option_find_int(options, "index", 0);
     return layer;
 }
 
@@ -401,7 +404,7 @@ roipool_layer parse_roipool(list *options, size_params params)
     int out_h = option_find_int(options, "height", 3);
     int out_w = option_find_int(options, "width", 3);
 
-    int batch,h,w,c,n,inputs;
+    int batch,h,w,c,inputs;
     h = option_find_int(options, "h", 14);
     w = option_find_int(options, "w", 14);
     c = option_find_int(options, "c", 1024);
@@ -428,11 +431,11 @@ roiloss_layer parse_roiloss(list *options, size_params params)
 
 centerpool_layer parse_centerpool(list *options, size_params params)
 {
-    int index = option_find_float(options, "index", 24);//--------------------which layer not scale
+    int index = option_find_int(options, "index", 24);//--------------------which layer not scale
     int out_h = option_find_int(options, "height", 3);
     int out_w = option_find_int(options, "width", 3);
 
-    int batch,h,w,c,n,inputs;
+    int batch,h,w,c,inputs;
     h = option_find_int(options, "h", 14);
     w = option_find_int(options, "w", 14);
     c = option_find_int(options, "c", 1024);
@@ -441,6 +444,17 @@ centerpool_layer parse_centerpool(list *options, size_params params)
     inputs=params.inputs;
     centerpool_layer layer = make_centerpool_layer(batch,inputs,h,w,c,out_h,out_w,num,index);
 
+    return layer;
+}
+
+copy_layer parse_copy(list *options, size_params params)
+{
+    int index = option_find_int(options, "index", 24);
+    int h = option_find_int(options, "h", 14);
+    int w = option_find_int(options, "w", 14);
+    int c = option_find_int(options, "c", 1024);
+    int batch=params.batch;
+    copy_layer layer = make_copy_layer(batch,h,w,c,index);
     return layer;
 }
 
@@ -744,6 +758,8 @@ network parse_network_cfg(char *filename)
             l = parse_roiloss(options, params);
         }else if(lt == CENTERPOOL){
             l = parse_centerpool(options, params);
+        }else if(lt == COPY){
+            l = parse_copy(options, params);
         }else{
             fprintf(stderr, "Type not recognized: %s\n", s->type);
         }

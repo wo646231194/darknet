@@ -71,6 +71,16 @@ void forward_network_index_gpu(network net, network_state state, int index)
         if(l.delta_gpu){
             fill_ongpu(l.outputs * l.batch, 0, l.delta_gpu, 1);
         }
+        if(l.type == COPY){
+            l.forward(l, state);
+            l = net.layers[l.index];
+            state.input = l.output_gpu;
+            continue;
+        }
+        if(l.type == ROILOSS){
+            forward_roiloss_layer_gpu(l, state, 0, 0, 0, 0, 0);
+            break;
+        }
         l.forward_gpu(l, state);
         state.input = l.output_gpu;
     }
@@ -90,8 +100,14 @@ void backward_network_index_gpu(network net, network_state state, int index)
             state.delta = original_delta;
         }else{
             layer prev = net.layers[i-1];
-            state.input = prev.output_gpu;
-            state.delta = prev.delta_gpu;
+            if(prev.type == COPY){
+                prev = net.layers[prev.index];//----conv----
+                state.input = prev.output_gpu;
+                state.delta = prev.delta_gpu;
+            }else{
+                state.input = prev.output_gpu;
+                state.delta = prev.delta_gpu;
+            }
         }
         l.backward_gpu(l, state);
     }
@@ -110,23 +126,25 @@ void forward_network_map_gpu(network net, network_state state, int index, int n,
         if (l.type == MAPLOSS){
             forward_maploss_layer_gpu(l, state, n, h, w, x, y);
             state.input = l.output;
-            batch = l.batch * l.n;//change batch
             continue;
         }
         if(batch) l.batch = batch;
         if (l.type == ROIPOOL){
+            batch = l.batch * l.n;//change batch
             forward_roipool_layer(l, state, n, h, w, x, y);
             state.input = l.output_gpu;
             continue;
         }
         if (l.type == CENTERPOOL){
-            l.batch = batch / l.n; batch = 0;
             forward_centerpool_layer(l, state, n, h, w, x, y);
             state.input = l.output_gpu;
             continue;
         }
         if (l.type == ROILOSS){
             forward_roiloss_layer_gpu(l, state, n, h, w, x, y);
+            break;
+        }
+        if (l.type == COPY){
             break;
         }
         l.forward_gpu(l, state);
@@ -143,7 +161,7 @@ void backward_network_map_gpu(network net, network_state state, int index, int n
     for(i = net.n-1; i >= index; --i){
         state.index = i;
         layer l = net.layers[i];
-        if(l.type == ROIPOOL || l.type == CENTERPOOL){
+        if(l.type == ROIPOOL || l.type == CENTERPOOL || l.type == ROILOSS){
             while(l.type != MAPLOSS){
                 l = net.layers[--i];
             }

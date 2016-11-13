@@ -298,7 +298,7 @@ void fill_truth_pyramid(char *path, float *truth, int classes, int num_boxes, in
     randomize_boxes(boxes, count);
     correct_boxes(boxes, count, dx, dy, sx, sy, flip);
     float x,y,w,h;
-    int id;
+    int id=0;
     int i;
 
     for (i = 0; i < count; ++i) {
@@ -306,14 +306,14 @@ void fill_truth_pyramid(char *path, float *truth, int classes, int num_boxes, in
         y =  boxes[i].y;
         w =  boxes[i].w;
         h =  boxes[i].h;
-        id = boxes[i].id;
 
         if (w < .01 || h < .0625) continue;
         if (x < 0 || x > 0.999999 || y < 0 || y > 0.999999) continue;
 
-        int index = i*(5+classes);
+        int index = id*(5+classes);
         if (truth[index]) continue;
         truth[index++] = 1;
+        ++id;
 
         if (id < classes) truth[index+id] = 1;
         index += classes;

@@ -102,19 +102,19 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
         // return;
     }
     count = 0;
-    //----------------neg---------------
-    for (i = 0; i < l.batch; ++i){
-        for (j = 0; j < l.n; ++j){
-            int in = (i*l.n + j)*(l.coords + l.classes);
-            float h_theta_y[1] = { state.input[in] };
-            activate_array(h_theta_y, 1, active);
-            float delta[1] = { (0.0 - h_theta_y[0]) };
-            gradient_array(h_theta_y, 1, active, delta);
-            l.delta[in] = delta[0]*l.noobject_scale;
-            if(h_theta_y[0]>0.9999999999) neg_loss = 10;
-            neg_loss -= log(1 - h_theta_y[0]);
-        }
-    }
+    // //----------------neg---------------
+    // for (i = 0; i < l.batch; ++i){
+    //     for (j = 0; j < l.n; ++j){
+    //         int in = (i*l.n + j)*(l.coords + l.classes);
+    //         float h_theta_y[1] = { state.input[in] };
+    //         activate_array(h_theta_y, 1, active);
+    //         float delta[1] = { (0.0 - h_theta_y[0]) };
+    //         gradient_array(h_theta_y, 1, active, delta);
+    //         l.delta[in] = delta[0]*l.noobject_scale;
+    //         if(h_theta_y[0]>0.9999999999) neg_loss = 10;
+    //         neg_loss -= log(1 - h_theta_y[0]);
+    //     }
+    // }
     //----------------pos--------------------
     for (i = 0; i < l.batch; ++i){
         int truth_index = i * 50 * (5 + l.classes);
@@ -164,6 +164,16 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
                     best_index = j;
                 }
             }
+
+            int in = (i*l.n + j)*(l.coords + l.classes);
+            float h_theta_y[1] = { state.input[in] };
+            activate_array(h_theta_y, 1, active);
+            float delta[1] = { (0.0 - h_theta_y[0]) };
+            gradient_array(h_theta_y, 1, active, delta);
+            l.delta[in] = delta[0]*l.noobject_scale;
+            if(h_theta_y[0]>0.9999999999) neg_loss = 10;
+            neg_loss -= log(1 - h_theta_y[0]);
+
             if(l.steps == 1 && tiou > 0.7){
                 count++;
                 // int p_index = i*l.inputs + j*(l.coords + l.classes);
@@ -227,6 +237,7 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
             gradient_array(h_theta_y, 1, active, delta);
             l.delta[p_index] = delta[0]*l.object_scale;
             pos_loss -= log(h_theta_y[0]);
+            neg_loss += log(1 - h_theta_y[0]);
 
             // truth.x /= width;
             // truth.y /= height;
@@ -236,10 +247,12 @@ void forward_maploss_layer(const maploss_layer l, network_state state, int n, in
             iou += box_iou(truth, out);
         // }
     }
-    *(l.cost) += pos_loss + neg_loss/l.n + loc_loss;
+    int neg_count = l.batch*l.n - count;
+    *(l.cost) += pos_loss + neg_loss/neg_count + loc_loss;
 
-    if(count)
-    printf("MapLoss Avg IOU: %f, Pos loss: %f, Neg loss: %f, Loc loss: %f, count: %d\n", iou / count, pos_loss / count, neg_loss * 5 / (l.inputs*l.batch), loc_loss / count, count);
+    if(count){
+        printf("%d MapLoss Avg IOU: %f, Pos loss: %f, Neg loss: %f, Loc loss: %f, count: %d\n", n, iou / count, pos_loss / count, neg_loss/neg_count, loc_loss / count, count);
+    }
 }
 
 void forward_maploss_layer_test(const maploss_layer l, float* in_cpu, int n, int height, int width, int* x, int* y)

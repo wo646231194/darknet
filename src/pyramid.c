@@ -140,7 +140,7 @@ void validate_pyramid(char *cfgfile, char *weightfile)
     int i=0;
     int t;
 
-    float thresh = .01;
+    float thresh = .001;
     int nms = 1;
     float iou_thresh = .5;
 

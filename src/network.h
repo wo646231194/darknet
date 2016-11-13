@@ -131,6 +131,7 @@ float get_network_cost(network net);
 int get_network_nuisance(network net);
 int get_network_background(network net);
 int* get_maploss_layer_indexes(network net);
+int* get_map_layer_indexes(network net);
 float* get_maploss_layer_output(network net);
 
 #endif
