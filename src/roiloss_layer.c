@@ -49,6 +49,16 @@ void backward_roiloss_layer(const roiloss_layer l, network_state state)
     axpy_cpu(l.batch*l.inputs, 1, l.delta, 1, state.delta, 1);
 }
 
+void print_value(const roiloss_layer l, FILE **fps)
+{
+    cuda_pull_array(l.output_gpu, l.output, l.batch*l.outputs);
+    int r;
+    for(r=0;r<l.batch*l.outputs;r++){
+        fprintf(fps[0],"%.2f ",l.output[r]);
+    }
+    fprintf(fps[0],"\r\n");
+}
+
 #ifdef GPU
 
 void forward_roiloss_layer_gpu(const roiloss_layer l, network_state state, int n, int height, int width, int* x, int* y)
@@ -64,7 +74,9 @@ void forward_roiloss_layer_gpu(const roiloss_layer l, network_state state, int n
                     for (j = 0; j < l.n; ++j){
                         mapout[p_index*l.n*5 + j*5] *= l.output[p_index];
                     }
+                    // printf("%.2f ",l.output[p_index]);
                 }
+                // printf("\n");
             }
             // for (j = 0; j < l.n; ++j){
             //     int p_index = i*l.n + j;
@@ -72,6 +84,7 @@ void forward_roiloss_layer_gpu(const roiloss_layer l, network_state state, int n
             //     mapout[cell_index*l.n*5 + p_index*5 + 0] += in_cpu[p_index];
             // }
         }
+        cuda_push_array(l.output_gpu, l.output, l.batch * l.outputs);
         return;
     }
 

@@ -110,16 +110,16 @@ void forward_map_layer_gpu(map_layer l, network_state state)
         cuda_pull_array(state.truth, truth_cpu, num_truth);
     }
     //--------------max truth box in batch-------------
-    int m=3,n;
-    // for(int i = 0; i < l.batch; ++i){
-    //     int bt = i*50*(5+l.classes);
-    //     int num=0;
-    //     while (truth_cpu[bt]==1.0){
-    //         num++;
-    //         bt += (5+l.classes);
-    //     }
-    //     m = m>num?m:num;
-    // }
+    int m=0,n;
+    for(int i = 0; i < l.batch; ++i){
+        int bt = i*50*(5+l.classes);
+        int num=0;
+        while (truth_cpu[bt]==1.0){
+            num++;
+            bt += (5+l.classes);
+        }
+        m = m>num?m:num;
+    }
     //---------------forward max truth-------------------
     if(l.index) *(state.net.layers[l.index-1].cost) = 0;
     else *(state.net.layers[state.net.n-1].cost) = 0;

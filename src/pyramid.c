@@ -1,5 +1,6 @@
 #include "network.h"
 #include "maploss_layer.h"
+#include "roiloss_layer.h"
 #include "cost_layer.h"
 #include "utils.h"
 #include "parser.h"
@@ -85,7 +86,7 @@ void train_pyramid(char *cfgfile, char *weightfile)
     save_weights(net, buff);
 }
 
-void print_pyramid_detections(FILE **fps, char *id, box *boxes, float **probs, int total, int classes, int w, int h)
+void print_pyramid_detections(FILE **fps, int id, box *boxes, float **probs, int total, int classes, int w, int h)
 {
     int i, j;
     for(i = 0; i < total; ++i){
@@ -100,13 +101,13 @@ void print_pyramid_detections(FILE **fps, char *id, box *boxes, float **probs, i
         if (ymax > h) ymax = h;
 
         for(j = 0; j < classes; ++j){
-            if (probs[i][j]) fprintf(fps[j], "%s %f %f %f %f %f\n", id, probs[i][j],
+            if (probs[i][j]) fprintf(fps[j], "%d %f %f %f %f %f\n", id, probs[i][j],
                     xmin*w, ymin*h, xmax*w, ymax*h);
         }
     }
 }
 
-void validate_pyramid(char *cfgfile, char *weightfile)
+void validate_value(char *cfgfile, char *weightfile)
 {
     network net = parse_network_cfg(cfgfile);
     if(weightfile){
@@ -116,13 +117,14 @@ void validate_pyramid(char *cfgfile, char *weightfile)
     fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net.learning_rate, net.momentum, net.decay);
     srand(time(0));
 
-    char *base = "results/pixelbox_";
+    char *base = "results/value_";
     //list *plist = get_paths("data/voc.2007.test");
     list *plist = get_paths("/home/huyang/桌面/Darknet/Caltech_data/Caltech/test.txt");
     //list *plist = get_paths("data/voc.2012.test");
     char **paths = (char **)list_to_array(plist);
 
-    layer l = net.layers[net.n-1];
+    int neti = net.n-1;
+    roiloss_layer l = net.layers[neti];
     int classes = l.classes;
 
     int j;
@@ -138,7 +140,7 @@ void validate_pyramid(char *cfgfile, char *weightfile)
 
     int m = plist->size;
     int i=0;
-    int t;
+    int t,r;
 
     float thresh = .001;
     int nms = 1;
@@ -183,9 +185,99 @@ void validate_pyramid(char *cfgfile, char *weightfile)
             network_predict(net, X);
             int w = val[t].w;
             int h = val[t].h;
+            print_value(l, fps);
+            free(id);
+            free_image(val[t]);
+            free_image(val_resized[t]);
+        }
+    }
+    fprintf(stderr, "Total Detection Time: %f Seconds\n", (double)(time(0) - start));
+}
+
+void validate_pyramid(char *cfgfile, char *weightfile)
+{
+    network net = parse_network_cfg(cfgfile);
+    if(weightfile){
+        load_weights(&net, weightfile);
+    }
+    set_batch_network(&net, 1);
+    fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net.learning_rate, net.momentum, net.decay);
+    srand(time(0));
+
+    char *base = "results/pixelbox_";
+    //list *plist = get_paths("data/voc.2007.test");
+    list *plist = get_paths("/home/huyang/桌面/Darknet/Caltech_data/Caltech/test.txt");
+    //list *plist = get_paths("data/voc.2012.test");
+    char **paths = (char **)list_to_array(plist);
+
+    int neti = net.n-1;
+    maploss_layer l = net.layers[neti];
+    while(l.type!=MAPLOSS){
+        l = net.layers[--neti];
+    }
+    int classes = l.classes;
+
+    int j;
+    FILE **fps = calloc(classes, sizeof(FILE *));
+    for(j = 0; j < classes; ++j){
+        char buff[1024];
+        snprintf(buff, 1024, "%s%s.txt", base, object_name[j]);
+        fps[j] = fopen(buff, "w");
+    }
+    box *boxes = calloc(l.outputs / 5, sizeof(box));
+    float **probs = calloc(l.outputs / 5, sizeof(float *));
+    for (j = 0; j < l.outputs / 5; ++j) probs[j] = calloc(l.classes, sizeof(float *));
+
+    int m = plist->size;
+    int i=0;
+    int t;
+
+    float thresh = .01;
+    int nms = 1;
+    float iou_thresh = .5;
+
+    int nthreads = 8;
+    image *val = calloc(nthreads, sizeof(image));
+    image *val_resized = calloc(nthreads, sizeof(image));
+    image *buf = calloc(nthreads, sizeof(image));
+    image *buf_resized = calloc(nthreads, sizeof(image));
+    pthread_t *thr = calloc(nthreads, sizeof(pthread_t));
+
+    load_args args = {0};
+    args.w = net.w;
+    args.h = net.h;
+    args.type = IMAGE_DATA;
+
+    for(t = 0; t < nthreads; ++t){
+        args.path = paths[i+t];
+        args.im = &buf[t];
+        args.resized = &buf_resized[t];
+        thr[t] = load_data_in_thread(args);
+    }
+    time_t start = time(0);
+    for(i = nthreads; i < m+nthreads; i += nthreads){
+        fprintf(stderr, "%d\n", i);
+        for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
+            pthread_join(thr[t], 0);
+            val[t] = buf[t];
+            val_resized[t] = buf_resized[t];
+        }
+        for(t = 0; t < nthreads && i+t < m; ++t){
+            args.path = paths[i+t];
+            args.im = &buf[t];
+            args.resized = &buf_resized[t];
+            thr[t] = load_data_in_thread(args);
+        }
+        for(t = 0; t < nthreads && i+t-nthreads < m; ++t){
+            char *path = paths[i+t-nthreads];
+            char *id = basecfg(path);
+            float *X = val_resized[t].data;
+            network_predict(net, X);
+            int w = val[t].w;
+            int h = val[t].h;
             get_maploss_boxes(l, w, h, thresh, probs, boxes, 0);
             if (nms) do_nms_sort(boxes, probs, l.outputs / 5, l.classes, iou_thresh);
-            print_pyramid_detections(fps, id, boxes, probs, l.outputs / 5, l.classes, w, h);
+            print_pyramid_detections(fps, i+t-nthreads+1, boxes, probs, l.outputs / 5, l.classes, w, h);
             free(id);
             free_image(val[t]);
             free_image(val_resized[t]);
@@ -298,7 +390,7 @@ void test_pyramid(char *cfgfile, char *weightfile, char *filename, float thresh)
     char buff[256];
     char *input = buff;
     int j;
-    float nms=.4;
+    float nms=.5;
     box *boxes = calloc(l.outputs / 5, sizeof(box));
     float **probs = calloc(l.outputs / 5, sizeof(float *));
     for (j = 0; j < l.outputs / 5; ++j) probs[j] = calloc(l.classes, sizeof(float *));
@@ -354,4 +446,5 @@ void run_pyramid(int argc, char **argv)
     else if(0==strcmp(argv[2], "valid")) validate_pyramid(cfg, weights);
     else if(0==strcmp(argv[2], "recall")) validate_pyramid_recall(cfg, weights);
     else if(0==strcmp(argv[2], "demo")) demo(cfg, weights, thresh, cam_index, filename, object_name, 1, frame_skip, prefix);
+    else if(0==strcmp(argv[2], "value")) validate_value(cfg, weights);
 }
